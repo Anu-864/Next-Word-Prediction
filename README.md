@@ -5,8 +5,8 @@ Two LSTM-based text generation models trained on the Tiny Shakespeare dataset �
 ## Contents
 
 - `LSTM.ipynb` — full notebook: data preprocessing, both models, training, evaluation
-- `shakespeare_lstm1.pth` — trained character-level model weights
-- `shakespeare_lstm2.pth` — trained word-level model weights (best checkpoint by validation loss)
+- `shakespeare_lstm.pth` — trained character-level model weights
+- `shakespeare_lstm1.pth` — trained word-level model weights (best checkpoint by validation loss)
 - `tiny-shakespeare.txt` — training data
 
 ## Dataset
