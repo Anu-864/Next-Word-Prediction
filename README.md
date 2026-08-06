@@ -1,99 +1,73 @@
-# Shakespeare Text Generation with LSTMs
+# Word-Level LSTM Text Generator (Shakespeare)
 
-Two LSTM-based text generation models trained on the Tiny Shakespeare dataset — one operating at the **character level**, one at the **word level** — built to understand the full pipeline from raw text to trained model, and to compare how tokenization granularity affects difficulty, overfitting, and results.
+A word-level language model built from scratch in PyTorch that learns to predict the next word in a sequence, trained on the Tiny Shakespeare corpus.
 
-## Contents
+## Overview
 
-- `LSTM.ipynb` — full notebook: data preprocessing, both models, training, evaluation
-- `shakespeare_lstm.pth` — trained character-level model weights
-- `shakespeare_lstm1.pth` — trained word-level model weights (best checkpoint by validation loss)
-- `tiny-shakespeare.txt` — training data
+This project implements a next-word prediction model using an LSTM (Long Short-Term Memory) network. Given a sequence of 10 words, the model predicts the most likely word to follow. The pipeline covers the full workflow: raw text ingestion, cleaning, tokenization, vocabulary construction, sequence generation, model design, training, and evaluation.
 
 ## Dataset
 
-[Tiny Shakespeare](https://github.com/karpathy/char-rnn) — ~1.1 million characters of Shakespeare's plays, lowercased and newline-collapsed during preprocessing.
+- **Source:** Tiny Shakespeare (`tiny-shakespeare.txt`)
+- **Size:** 1,115,394 characters of raw text
+- Loaded and read directly in a Colab environment using a file upload workflow.
 
----
+## Preprocessing
 
-## Model 1: Character-Level LSTM
+1. **Normalization** — text lowercased and newline characters collapsed into single spaces using regex (`\n+` → `" "`), reducing the corpus to 1,108,171 characters.
+2. **Tokenization** — whitespace-based word splitting (`text.split()`).
+3. **Vocabulary construction** — a `Counter` was used to compute word frequencies. Words occurring fewer than 2 times were excluded and mapped to a single `<UNK>` token to keep the vocabulary manageable. This produced a vocabulary of **10,113 unique tokens**.
+4. **Word ↔ index mappings** — `word_to_index` and `index_to_word` dictionaries built by enumerating the vocabulary.
+5. **Encoding** — the full token stream converted into integer indices, falling back to `<UNK>` for out-of-vocabulary words.
+6. **Sequence generation** — a sliding window of length 10 was used to build `(sequence, target)` pairs, where each sequence of 10 consecutive word indices is paired with the word that immediately follows it.
 
-Predicts the next **character** given the previous 100 characters.
+## Model Architecture
 
-**Architecture:** Embedding → 2-layer LSTM (hidden size 256) → Linear → softmax over vocabulary
+A custom `LSTM` class built on top of `nn.Module`:
 
-| Setting | Value |
+| Component | Configuration |
 |---|---|
-| Vocabulary size | ~35 unique characters |
-| Sequence length | 100 |
-| Batch size | 256 |
-| Epochs | 20 |
-| Optimizer | Adam |
+| Embedding layer | `vocab_len → 128` dimensions |
+| LSTM layers | 2 stacked layers, hidden size 256 |
+| Dropout | 0.4 (regularization between LSTM layers) |
+| Output layer | Fully connected, `256 → vocab_len` |
+| Batching | `batch_first=True` |
 
-**Results (held-out test set):**
-| Metric | Value |
-|---|---|
-| Accuracy | 60.04% |
-| Perplexity | 3.57 |
+**Forward pass:** input tokens → embedding lookup → LSTM → take the hidden state of the final timestep → linear projection to vocabulary-sized logits.
 
-A perplexity of 3.57 means the model is typically choosing among just a handful of plausible next characters — a strong result, though expected for character-level prediction, which is an inherently easier task than word-level (far fewer possible outputs, more redundant structure like consistent spelling).
+## Training Setup
 
----
+- **Loss function:** `CrossEntropyLoss`
+- **Optimizer:** Adam, learning rate default, weight decay `1e-4`
+- **Train/test split:** 80% / 20%
+- **Batch size:** 256 (train and test)
+- **Epochs:** 25
+- **Device:** CUDA (T4 GPU), with automatic CPU fallback
+- Best model checkpointed based on lowest validation loss (`shakespeare_lstm2.pth`)
 
-## Model 2: Word-Level LSTM
-
-Predicts the next **word** given the previous *N* words. Same architecture family as the character model, extended to handle a much larger vocabulary.
-
-### Key differences from the character model
-
-**Tokenization:** text is split on whitespace into words rather than characters. Raw vocabulary came out to **23,641 unique words** — words appearing fewer than 2 times were folded into a single `<UNK>` token, reducing the effective vocabulary to **10,113**.
-
-**Why this matters:** with ~200,000 word-tokens total spread across 10,000+ possible classes, this is a fundamentally harder learning problem than the character model, which only had ~35 classes to choose from over 1.1 million tokens. This shows up directly in the results below.
-
-### Experiments and overfitting
-
-An initial run (sequence length 20, no dropout, no validation tracking) trained for 25 epochs and looked fine by training loss alone (dropped steadily to ~3.3) — but evaluating afterward revealed severe overfitting: test-set loss corresponded to a perplexity of **3380**, barely better than random guessing (`ln(vocab_size) ≈ 9.2` nats, vs. the model's actual test loss of ~8.1 nats). The model had memorized training sequences without learning anything that generalized.
-
-Fixes applied:
-- Added **dropout** between LSTM layers
-- Reduced **sequence length** (more training examples from the same text)
-- Added **per-epoch validation loss tracking**, so overfitting is visible during training rather than only discovered afterward
-- Added **checkpointing**: the model is saved only when validation loss improves, so the final saved weights come from the best-performing epoch rather than simply the last one
-
-### Sequence length comparison
-
-| Sequence length | Test accuracy | Test perplexity |
-|---|---|---|
-| 20 (no fixes above) | ~10.5% | 3380 |
-| 10 | 12.82% | 321.4 |
-| 5 | 12.55% | 318.1 |
-
-Shortening the context window from 20 to 10 words produced a dramatic improvement (more training examples, plus dropout). Going further to 5 words made almost no additional difference — suggesting the model was already near its ceiling for this dataset size and vocabulary, rather than sequence length being the dominant remaining bottleneck.
-
-**Final reported model:** sequence length 10, best checkpoint by validation loss.
+## Results
 
 | Metric | Value |
 |---|---|
-| Accuracy | 12.82% |
-| Perplexity | 321.4 |
+| Final training loss (epoch 25) | 5.14 |
+| Best validation loss | 5.77 (epoch 17) |
+| Next-word accuracy | 12.79% |
+| Perplexity | 320.1 |
 
-### Honest interpretation of these numbers
+**Training curve:** training loss decreased steadily across all 25 epochs (6.77 → 5.14), while validation loss plateaued early and improved only marginally (6.53 → 5.77), suggesting the model's capacity/training regime is close to saturating what it can learn from this setup rather than the classic overfitting pattern of diverging train/val curves.
 
-12.82% exact-match accuracy sounds low in isolation, but the model is choosing from **10,113 possible words** — random guessing would be correct roughly 0.01% of the time, so this is over 1,000x better than chance. Word-level language modeling on a dataset this small (~200K tokens) is a genuinely hard problem; modern word/subword-level language models are typically trained on datasets many orders of magnitude larger. This result reflects a real, expected data-size ceiling rather than a implementation flaw — the character-level model's much higher accuracy (60%) is a fair comparison only once you account for its far smaller output space (35 vs. 10,113 classes).
 
----
+## How to Run
 
-## Running this project
+1. Upload `tiny-shakespeare.txt` (or point to your own text corpus).
+2. Run preprocessing cells to clean text and build vocabulary.
+3. Run training loop (25 epochs by default).
+4. Best model weights are saved to `shakespeare_lstm2.pth`.
+5. Load the saved weights and run the evaluation loop to compute accuracy and perplexity on the held-out test set.
 
-```bash
-pip install torch torchvision pandas numpy
-jupyter notebook LSTM.ipynb
-```
+## Tech Stack
 
-Run cells top to bottom. Training data (`tiny-shakespeare.txt`) is included in this repo.
-
-## Limitations / what I'd improve with more time
-
-- Validation and test sets are currently the same split (no separate held-out validation set), so per-epoch monitoring and final evaluation use the same data — a stricter setup would use a three-way train/val/test split
-- No text-generation sampling loop yet (temperature/top-k sampling) — currently the models only do one-step-ahead prediction; generating longer passages is the natural next step
-- Word-level vocabulary could be further reduced with stemming/lemmatization, or extended with subword tokenization (e.g. BPE) to reduce the `<UNK>` rate without exploding vocabulary size
-- Training on a larger corpus would be the single biggest lever for improving word-level results.
+- Python, PyTorch
+- `torch.utils.data` (`TensorDataset`, `DataLoader`)
+- NumPy, Pandas (data handling utilities)
+- Google Colab (GPU training environment)
