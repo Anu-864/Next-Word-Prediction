@@ -18,7 +18,10 @@ model = model.to(config.device)
 
 criterion = nn.CrossEntropyLoss()
 
-model.load_state_dict(torch.load("shakespeare_lstm2.pth"))
+import os
+
+model_ckpt = "shakespeare_lstm.pth" if os.path.exists("shakespeare_lstm.pth") else "shakespeare_lstm2.pth"
+model.load_state_dict(torch.load(model_ckpt, map_location=config.device))
 model.eval()
 
 with torch.no_grad():

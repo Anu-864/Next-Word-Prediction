@@ -57,17 +57,54 @@ A custom `LSTM` class built on top of `nn.Module`:
 **Training curve:** training loss decreased steadily across all 25 epochs (6.77 → 5.14), while validation loss plateaued early and improved only marginally (6.53 → 5.77), suggesting the model's capacity/training regime is close to saturating what it can learn from this setup rather than the classic overfitting pattern of diverging train/val curves.
 
 
-## How to Run
+## Interactive UI (Light Theme)
+
+An interactive, responsive user interface featuring a modern light theme is included to explore model predictions, test prompts, inspect the sliding context window, and generate text passages.
+
+### Option 1: Streamlit Interactive UI (Recommended)
+Launch the Streamlit app with interactive buttons, charts, and parameter sliders:
+
+```bash
+streamlit run app.py
+```
+*Accessible in your browser at `http://localhost:8501`*
+
+**Features:**
+- 🎨 **Modern Light Theme:** Clean aesthetic styled with custom light colors, crisp typography, and badge indicators.
+- 🔮 **Interactive Next-Word Predictor:** View Top-K predicted next words with animated probability percentages. Click any word to append it directly to your prompt and continue predicting.
+- 🎭 **Famous Shakespeare Presets:** One-click presets for classic lines (*"To be or not to be..."*, *"Shall I compare thee to a..."*, *"All the world is a..."*).
+- ✨ **Continuous Passage Generator:** Generate multi-word sentences using Top-K sampling, Temperature sampling, or Greedy argmax.
+- 🪟 **10-Word Sliding Context Window:** Real-time visual breakdown of the 10 tokens fed into the LSTM, highlighting known tokens vs. `<UNK>` (out-of-vocabulary) and padding.
+- 📚 **Vocabulary Explorer & Search:** Search the 10,113-word vocabulary and view word frequency distribution.
+- 📊 **Architecture & Metrics Dashboard:** Review model architecture specs, accuracy (12.79%), and perplexity (320.1).
+
+### Option 2: Lightweight FastAPI Web UI
+Alternatively, run the standalone FastAPI web server:
+
+```bash
+python web_app.py
+```
+*Accessible in your browser at `http://127.0.0.1:8000`*
+
+---
+
+## How to Run Model Training & Evaluation
 
 1. Upload `tiny-shakespeare.txt` (or point to your own text corpus).
 2. Run preprocessing cells to clean text and build vocabulary.
 3. Run training loop (25 epochs by default).
 4. Best model weights are saved to `shakespeare_lstm2.pth`.
-5. Load the saved weights and run the evaluation loop to compute accuracy and perplexity on the held-out test set.
+5. Load the saved weights and run the evaluation loop to compute accuracy and perplexity on the held-out test set:
+
+```bash
+python src/evaluate.py
+```
 
 ## Tech Stack
 
-- Python, PyTorch
+- Python 3, PyTorch
 - `torch.utils.data` (`TensorDataset`, `DataLoader`)
-- NumPy, Pandas (data handling utilities)
-- Google Colab (GPU training environment)
+- Streamlit, FastAPI, Uvicorn (Interactive UIs)
+- NumPy, Pandas (Data handling & charts)
+- HTML5 / CSS3 / JavaScript (Modern Light UI)
+
