@@ -187,7 +187,17 @@ st.markdown(
 
 # Initialize Session State
 if "prompt_input" not in st.session_state:
-    st.session_state.prompt_input = "to be or not to be that is the"
+    st.session_state["prompt_input"] = "to be or not to be that is the"
+
+def clear_prompt_callback():
+    st.session_state["prompt_input"] = ""
+
+def set_preset_callback(preset_text):
+    st.session_state["prompt_input"] = preset_text
+
+def append_word_callback(word):
+    curr = st.session_state.get("prompt_input", "").strip()
+    st.session_state["prompt_input"] = f"{curr} {word}".strip()
 
 # Sidebar Controls
 with st.sidebar:
@@ -216,9 +226,7 @@ with st.sidebar:
     ]
 
     for p in presets:
-        if st.button(f"📜 {p[:30]}...", key=f"preset_{p}", use_container_width=True):
-            st.session_state.prompt_input = p
-            st.rerun()
+        st.button(f"📜 {p[:30]}...", key=f"preset_{p}", on_click=set_preset_callback, args=(p,), use_container_width=True)
 
     st.markdown("---")
     st.markdown("### ℹ️ About This Model")
@@ -249,21 +257,17 @@ with tab_predict:
         st.markdown("#### 💬 Your Text Prompt")
         user_prompt = st.text_area(
             "Enter sequence of words:",
-            value=st.session_state.prompt_input,
+            key="prompt_input",
             height=120,
-            key="user_prompt_widget",
             help="Type your text. The model analyzes the last 10 words to predict the next word."
         )
-        # Update session state if edited
-        st.session_state.prompt_input = user_prompt
 
         c1, c2 = st.columns([1, 1])
         with c1:
-            if st.button("🧹 Clear Prompt", use_container_width=True):
-                st.session_state.prompt_input = ""
-                st.rerun()
+            st.button("🧹 Clear Prompt", on_click=clear_prompt_callback, use_container_width=True)
         with c2:
-            st.button("🔄 Refresh Prediction", use_container_width=True)
+            if st.button("🔄 Refresh Prediction", use_container_width=True):
+                st.rerun()
 
         st.markdown("---")
         st.markdown("#### ⚡ Continuous Text Generation")
@@ -282,12 +286,12 @@ with tab_predict:
         )
 
         if st.button("✨ Generate Shakespearean Passage", type="primary", use_container_width=True):
-            if not st.session_state.prompt_input.strip():
+            if not st.session_state["prompt_input"].strip():
                 st.warning("Please enter a prompt first.")
             else:
                 with st.spinner("Generating sequence..."):
                     gen_result = predictor.generate_sequence(
-                        seed_text=st.session_state.prompt_input,
+                        seed_text=st.session_state["prompt_input"],
                         num_words=gen_words_count,
                         temperature=temperature,
                         filter_unk=filter_unk,
@@ -308,9 +312,10 @@ with tab_predict:
         st.markdown("#### 🎯 Next Word Candidates")
         st.caption("Click any word below to append it to your prompt and continue predicting!")
 
-        if st.session_state.prompt_input.strip():
+        current_prompt = st.session_state.get("prompt_input", "").strip()
+        if current_prompt:
             res = predictor.predict_next_word(
-                prompt=st.session_state.prompt_input,
+                prompt=current_prompt,
                 top_k=top_k,
                 filter_unk=filter_unk,
                 temperature=temperature
@@ -326,9 +331,13 @@ with tab_predict:
 
                     # Display clickable button for each prediction
                     btn_label = f"➕  {word}  —  {percent}%"
-                    if st.button(btn_label, key=f"append_{word}_{idx}", use_container_width=True):
-                        st.session_state.prompt_input = f"{st.session_state.prompt_input.strip()} {word}"
-                        st.rerun()
+                    st.button(
+                        btn_label,
+                        key=f"append_{word}_{idx}",
+                        on_click=append_word_callback,
+                        args=(word,),
+                        use_container_width=True
+                    )
 
                 # Probability Distribution Chart
                 st.markdown("##### 📊 Probability Breakdown")
